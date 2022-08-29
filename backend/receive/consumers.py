@@ -59,7 +59,7 @@ class ChatConsumer(WebsocketConsumer):
     def join_message(self,event):
         #print(event)
         res={
-            "event":"join",
+            "event":"connect",
             "user_name":event['message']['user_name']
         }
         # send the message to websocket

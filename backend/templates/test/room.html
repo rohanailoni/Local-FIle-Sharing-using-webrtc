@@ -33,7 +33,7 @@
             
             const data = JSON.parse(e.data);
             //document.querySelector('#chat-log').value += (data.user_name +' has joined the chat'+ '\n');
-            if(data.event==="join"){
+            if(data.event==="connect"){
                 var x=(data.user_name +' has joined the chat'+ '\n')
                 document.getElementById("myBox").innerHTML+="<div class='dotconnect'></div>"+x+"<br/>"
             }
