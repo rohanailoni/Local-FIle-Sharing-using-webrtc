@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>upload1 Room</title>
+    <script src="https://use.fontawesome.com/d073e40e84.js"></script>
+</head>
+<body>
+    <div id="myBox">
+    </div>
+        <br>
+    <!-- <input id="chat-message-input" type="text" size="100"><br> -->
+    <input id="chat-message-submit" type="button" value="Send">
+    
+    <span class="dotdisconnect"></span>
+    {{ room_name|json_script:"room-name" }}
+    {{ user_name|json_script:"user-name" }}
+    <script>
+        
+        const roomName = JSON.parse(document.getElementById('room-name').textContent);
+        const userName = JSON.parse(document.getElementById('user-name').textContent);
+        const chatSocket = new WebSocket(
+            'ws://'
+            + window.location.host
+            + '/ws/chat/'
+            + roomName
+            + '/'
+            + userName
+            + '/'
+        );
+
+        chatSocket.onmessage = function(e) {
+            
+            const data = JSON.parse(e.data);
+            //document.querySelector('#chat-log').value += (data.user_name +' has joined the chat'+ '\n');
+            if(data.event==="join"){
+                var x=(data.user_name +' has joined the chat'+ '\n')
+                document.getElementById("myBox").innerHTML+="<div class='dotconnect'></div>"+x+"<br/>"
+            }
+            else if(data.event==="disconnect"){
+                var x=(data.user_name +' has left the chat'+ '\n')
+                document.getElementById("myBox").innerHTML+="<div class='dotdisconnect'></div>"+x+"<br/>"
+            }
+            
+        };
+
+        chatSocket.onclose = function(e) {
+            
+            console.error('Chat socket closed unexpectedly');
+        };
+
+        document.querySelector('#chat-message-input').onkeyup = function(e) {
+            if (e.keyCode === 13) {  // enter, return
+                document.querySelector('#chat-message-submit').click();
+            }
+        };
+
+        document.querySelector('#chat-message-submit').onclick = function(e) {
+            const messageInputDom = document.querySelector('#chat-message-input');
+            const message = messageInputDom.value;
+            chatSocket.send(JSON.stringify({
+                'message': message
+            }));
+            messageInputDom.value = '';
+        };
+    </script>
+    <style>
+        .dotconnect {
+            height: 10px;
+            width: 10px;
+            background-color: green;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .dotdisconnect{
+            height: 10px;
+            width: 10px;
+            background-color: red;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        body {
+        margin-bottom: 200%;
+        }
+        #myBox {
+        border: none;
+        padding: 5px;
+        font: 24px/36px sans-serif;
+        width: 400px;
+        height: 400px;
+        overflow: scroll;
+        }
+        ::-webkit-scrollbar {
+        width: 12px;
+        height: 12px;
+        }
+
+        ::-webkit-scrollbar-track {
+        border: 1px solid yellowgreen;
+        border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+        background: yellowgreen;  
+        border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+        background: #88ba1c;  
+        }
+    </style>
+</body>
+</html>
