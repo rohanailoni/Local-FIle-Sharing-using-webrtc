@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <form id="fileInfo">
+        <input type="file" id="fileInput" name="files" onchange="getfiledata(this)"/>
+        <input type="submit">
+    </form>
+    <div class="progress">
+        <div class="label">Send progress: </div>
+        <progress id="sendProgress" max="10" value="8"></progress>
+      </div>
+    <script>
+        async function handleFileInputChange() {
+            const file = fileInput.files[0];
+            if (!file) {
+                console.log('No file chosen');
+            } else {
+                
+            }
+        }
+        function getfiledata(files){
+            var file=files.files[0];
+            console.log(`File is ${[file.name, file.size, file.type, file.lastModified].join(' ')}`);
+            const chunkSize = 16384;
+            fileReader = new FileReader();     
+            let offset = 0;
+            fileReader.addEventListener('error', error => console.error('Error reading file:', error));
+            fileReader.addEventListener('abort', event => console.log('File reading aborted:', event));
+            fileReader.addEventListener('load', e => {
+                console.log('FileRead.onload ', e);
+                
+                offset += e.target.result.byteLength;
+                
+                if (offset < file.size) {
+                    readSlice(offset);
+                }
+            });   
+            const readSlice = o => {
+                console.log('readSlice ', o);
+                const slice = file.slice(offset, o + chunkSize);
+                fileReader.readAsArrayBuffer(slice);
+            };
+            readSlice(0);
+
+        }
+        //const fileInput = document.querySelector('input#fileInput');
+        
+        //fileInput.addEventListener('change', handleFileInputChange, false);
+        
+        
+    </script>
+</body>
+</html>
