@@ -6,12 +6,14 @@
     <script src="https://use.fontawesome.com/d073e40e84.js"></script>
 </head>
 <body>
-    <div id="myBox">
-    </div>
+    <!-- <div id="myBox">
+    </div> -->
         <br>
     <!-- <input id="chat-message-input" type="text" size="100"><br> -->
+    <!-- <input id="chat-message-submit" type="button" value="Send"> -->
+    <textarea id="chat-log" cols="100" rows="20"></textarea><br>
+    <input id="chat-message-input" type="text" size="100"><br>
     <input id="chat-message-submit" type="button" value="Send">
-    
     <span class="dotdisconnect"></span>
     {{ room_name|json_script:"room-name" }}
     {{ user_name|json_script:"user-name" }}
@@ -19,6 +21,7 @@
         
         const roomName = JSON.parse(document.getElementById('room-name').textContent);
         const userName = JSON.parse(document.getElementById('user-name').textContent);
+        var mappeer={};
         const chatSocket = new WebSocket(
             'ws://'
             + window.location.host
@@ -28,21 +31,37 @@
             + userName
             + '/'
         );
-
+        
+        //websocket on message event listner
         chatSocket.onmessage = function(e) {
             
             const data = JSON.parse(e.data);
-            //document.querySelector('#chat-log').value += (data.user_name +' has joined the chat'+ '\n');
-            if(data.event==="connect"){
-                var x=(data.user_name +' has joined the chat'+ '\n')
-                document.getElementById("myBox").innerHTML+="<div class='dotconnect'></div>"+x+"<br/>"
+            var peer_username=data.peer;
+            var action=data.action;
+            
+            if(peer_username === userName){
+
+            }else{
+                if(action==="new-peer"){
+                    var channel=data.message.reciver_channel_name
+                    createoffer(peer_username,channel);
+                }else if(action==="new-offer"){
+                    var msg=data.message.sdp
+                    var channel=data.message.reciver_channel_name
+                    createanswer(msg,peer_username,channel)
+                }else if(action==="new-answer"){
+                    var answer=data.message.sdp
+                    var peer=mappeer[peer_username][0]
+                    peer.setRemoteDescription(answer);
+                }
             }
-            else if(data.event==="disconnect"){
-                var x=(data.user_name +' has left the chat'+ '\n')
-                document.getElementById("myBox").innerHTML+="<div class='dotdisconnect'></div>"+x+"<br/>"
-            }
+
             
         };
+        chatSocket.onopen= function(e){
+            signal('new-peer',{});
+            
+        }
 
         chatSocket.onclose = function(e) {
             
@@ -62,6 +81,116 @@
                 'message': message
             }));
             messageInputDom.value = '';
+        };
+        function createoffer(peerusername,reciver_channel_name){
+            var peer =new RTCPeerConnection(null);
+
+            var dc= peer.createDataChannel('channel');
+
+            dc.addEventListener('open',()=>{
+                console.log("rtc connection opened");
+            });
+            mappeer[peerusername]=[peer,dc];
+            dc.addEventListener('message',(e)=>{
+
+                const data = e.data
+                document.querySelector('#chat-log').value += (data + '\n');
+            });
+            peer.addEventListener('iceconnectionstatechange',()=>{
+                var iceconnectionstate=peer.iceConnectionState;
+                if(iceconnectionstate === "failed" || iceconnectionstate === "disconnected" || iceconnectionstate === "closed"){
+                    delete mappeer[peerusername];
+                    if(iceconnectionstate !== "closed"){
+                        peer.close();
+                    }
+                    
+                }
+
+            });
+            peer.addEventListener('icecandidate',(event)=> {
+                //console.log(event.candidate)
+                //console.log(mappeer);
+                //console.log("event",event.candidate,event);
+                if(event.candidate !== null){
+                    //console.log("new ice condiate:-",JSON.stringify(peer.localDescription));
+                    return;
+
+                }
+                
+                signal('new-offer',{sdp:peer.localDescription,'reciver_channel_name':reciver_channel_name})
+
+
+            });
+            
+            peer.createOffer().then(o=>peer.setLocalDescription(o)).then(()=>console.log("local description sucessfully"))
+        }
+        function createanswer(offer,peerusername,reciver_ch) {
+            var peer =new RTCPeerConnection(null);
+
+            console.log(offer)
+
+            peer.addEventListener('datachannel',(e)=>{
+                console.log("In datachannel")
+                peer.dc=e.channel;
+                peer.dc.addEventListener('open',()=>{
+                    console.log("connection opened");
+                });
+                peer.dc.addEventListener('message',(e)=>{
+                    const data = e.data;
+                document.querySelector('#chat-log').value += (data + '\n');
+                });
+                mappeer[peerusername]=[peer,peer.dc];
+            })
+
+            peer.addEventListener('iceconnectionstatechange',()=>{
+                var iceconnectionstate=peer.iceConnectionState;
+                if(iceconnectionstate === "failed" || iceconnectionstate === "disconnected" || iceconnectionstate === "closed"){
+                    delete mappeer[peerusername];
+                    if(iceconnectionstate !== "closed"){
+                        peer.close();
+                    }
+                    
+                }
+
+            });
+            peer.addEventListener('icecandidate',(event)=> {
+                
+                if(event.candidate!==null){
+                    //console.log("event of ice condiate ",event);
+                    //console.log("new ice condiate:-",JSON.stringify(peer.localDescription));
+                    return;
+
+                }
+                signal('new-answer',{sdp:peer.localDescription,'reciver_channel_name':reciver_ch})
+
+
+            });
+            peer.setRemoteDescription(offer).then(()=> {
+                console.log("remote description set sucessfully for %s", peerusername);
+                return peer.createAnswer();
+            }).then(a=>{
+                console.log("answer created");
+                peer.setLocalDescription(a)
+            });
+1
+        }
+        function signal(action,message){
+            var jsonstr=JSON.stringify({
+            'peer':userName,
+            'action':action,
+            'message':message,
+            
+
+            });
+            chatSocket.send(jsonstr);
+        }
+        document.querySelector('#chat-message-submit').onclick = function(e) {
+            const messageInputDom = document.querySelector('#chat-message-input');
+            const message = messageInputDom.value;
+            for(const key in mappeer){
+                mappeer[key][1].send(message)
+            }
+            
         };
     </script>
     <style>
