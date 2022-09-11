@@ -40,11 +40,11 @@
         const receiveProgress = document.querySelector('progress#receiveProgress');
         const fileInput = document.querySelector('input#fileInput');
         const sendFileButton = document.querySelector('button#sendFile');
-        
+        console.log(window.location)
         //connect to websocker connection
         const chatSocket = new WebSocket(
             'ws://'
-            + window.location.host
+            + window.location.hostname+':8001'
             + '/ws/chat/'
             + roomName
             + '/'
