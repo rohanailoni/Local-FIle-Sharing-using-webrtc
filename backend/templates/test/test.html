@@ -96,7 +96,7 @@
                 
                 var send_msg={"action":"file-size","file-size":file.size,"file-name":file.name};
                 for(var key in mappeer){
-                    await mappeer[key][1].send(JSON.stringify(send_msg));
+                    await mappeer[key][2].send(JSON.stringify(send_msg));
                 }
                 sendFileButton.disabled=false;
             }
@@ -114,10 +114,9 @@
             fileReader.addEventListener('abort', event => console.log('File reading aborted:', event));
             fileReader.addEventListener('load', e => {
                 //console.log('FileRead.onload ', e.target.result);
-                var message={"action":"file","file":e.target.result};
-                console.log(message)
+                
                 for(var key in mappeer){
-                    mappeer[key][1].send(JSON.stringify(message));
+                    mappeer[key][1].send(e.target.result);
                 }
                 sendProgress.value = offset;
                 offset += e.target.result.byteLength;
@@ -138,18 +137,30 @@
         function createoffer(peerusername,reciver_channel_name){
             var peer =new RTCPeerConnection(null);
 
-            var dc= peer.createDataChannel('channel');
-            dc.binaryType="arraybuffer";
-            dc.addEventListener('open',()=>{
-                console.log("rtc connection opened");
+            var dc_array= peer.createDataChannel('arraybuffer');
+            var dc_json=peer.createDataChannel('json')
+            dc_array.binaryType="arraybuffer";
+            //adding event handler for arraybuffer channel
+            dc_array.addEventListener('open',()=>{
+                console.log("rtc connection opened for transfer of array buffer");
             });
-            mappeer[peerusername]=[peer,dc];
-            dc.addEventListener('message',(e)=>{
+            //adding message for arraybuffer channel
+            dc_array.addEventListener('message',(e)=>{
 
-                const data = JSON.parse(e.data);
-                handler(data);
+                onrecmessagefilehandler(e);
 
             });
+            //fopen handler for json data
+            dc_json.addEventListener('open',()=>{
+                console.log("rtc connection opened for transfer of json buffer");
+            });
+            //adding onmessage for json channel
+            dc_json.addEventListener('message',(e)=>{
+
+                onrecmessagefilehandler(e);
+
+            });
+            mappeer[peerusername]=[peer,dc_array,dc_json];
             peer.addEventListener('iceconnectionstatechange',()=>{
                 var iceconnectionstate=peer.iceConnectionState;
                 if(iceconnectionstate === "failed" || iceconnectionstate === "disconnected" || iceconnectionstate === "closed"){
@@ -178,29 +189,47 @@
         //this is for accepting the offer and return the message as accepted 
         function createanswer(offer,peerusername,reciver_ch) {
             var peer =new RTCPeerConnection(null);
-
+            if(!mappeer[peerusername]){
+                mappeer[peerusername]=[peer,null,null]
+            }
             
 
             peer.addEventListener('datachannel',(e)=>{
-                console.log("In datachannel")
-                peer.dc=e.channel;
-                peer.dc.binaryType='arraybuffer';
-                recivedsize=0
-                downloadAnchor.textContent="";
-                downloadAnchor.removeAttribute('download');
-                if (downloadAnchor.href) {
-                    URL.revokeObjectURL(downloadAnchor.href);
-                    downloadAnchor.removeAttribute('href');
+                console.log("In datachannel",e,"with channel name",e.channel.label)
+                var channel_name=e.channel.label
+                if(channel_name==="json"){
+                    peer.dc_json=e.channel
+                    peer.dc_json.addEventListener('open',()=>{
+                        console.log("connection opened for json channel");
+                    });
+                    peer.dc_json.addEventListener('message',(e)=>{
+                        const data = JSON.parse(e.data);
+                        handler(data)
+                        
+                    });
+                    mappeer[peerusername][2]=peer.dc_json
+                }else if(channel_name==="arraybuffer"){
+                    peer.dc_array=e.channel;
+                    peer.dc_array.binaryType='arraybuffer';
+                    recivedsize=0
+                    // downloadAnchor.textContent="";
+                    // downloadAnchor.removeAttribute('download');
+                    // if (downloadAnchor.href) {
+                    //     URL.revokeObjectURL(downloadAnchor.href);
+                    //     downloadAnchor.removeAttribute('href');
+                    // }
+                    peer.dc_array.addEventListener('open',()=>{
+                        console.log("connection opened for array buffer");
+                    });
+                    peer.dc_array.addEventListener('message',(e)=>{
+                        onrecmessagefilehandler(e);
+                        
+                    });
+                    mappeer[peerusername][1]=peer.dc_array
                 }
-                peer.dc.addEventListener('open',()=>{
-                    console.log("connection opened");
-                });
-                peer.dc.addEventListener('message',(e)=>{
-                    const data = JSON.parse(e.data);
-                    handler(data)
-                    
-                });
-                mappeer[peerusername]=[peer,peer.dc];
+                
+                
+                
             })
 
             peer.addEventListener('iceconnectionstatechange',()=>{
@@ -234,20 +263,21 @@
 1
         }
         // helper function for create answer on recive message 
-        function onrecmessage(event){
-            console.log(`Received message is of bytes ${event.byteLength}`);
-            receiveBuffer.push(event);
-            recivedsize+=event.byteLength;
-            console.log(event);
+        function onrecmessagefilehandler(event){
+            console.log(`Received message is of bytes ${event.data.byteLength}`);
+            receiveBuffer.push(event.data);
+            recivedsize+=event.data.byteLength;
+            //console.log(event);
+            console.log(rec_filesize,rec_filesize)
             receiveProgress.value = recivedsize;
-            if (receivedSize === rec_filesize) {
+            console.log(rec_filesize,recivedsize);
+            if (recivedsize === rec_filesize) {
                 const received = new Blob(receiveBuffer);
                 receiveBuffer = [];
 
                 downloadAnchor.href = URL.createObjectURL(received);
-                downloadAnchor.download = file.name;
-                downloadAnchor.textContent =
-                `Click to download '${filename}' (${rec_filesize} bytes)`;
+                downloadAnchor.download = filename;
+                downloadAnchor.textContent =`Click to download '${filename}' (${rec_filesize} bytes)`;
                 downloadAnchor.style.display = 'block';
             }
 
@@ -271,6 +301,7 @@
                 console.log(`we have detected the buffer of file size ${data["file-size"]}`);
                 rec_filesize=data["file-size"];
                 filename=data["file-name"];
+                receiveProgress.max=rec_filesize
             }
             else if(data["action"]==="file"){
                 onrecmessage(data["file"]);
