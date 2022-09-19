@@ -95,6 +95,7 @@
             } else {
                 
                 var send_msg={"action":"file-size","file-size":file.size,"file-name":file.name};
+                console.log("send message",send_msg)
                 for(var key in mappeer){
                     await mappeer[key][2].send(JSON.stringify(send_msg));
                 }
@@ -157,7 +158,9 @@
             //adding onmessage for json channel
             dc_json.addEventListener('message',(e)=>{
 
-                onrecmessagefilehandler(e);
+                const data = JSON.parse(e.data);
+                console.log("data recived:-",data)
+                handler(data)
 
             });
             mappeer[peerusername]=[peer,dc_array,dc_json];
@@ -204,6 +207,7 @@
                     });
                     peer.dc_json.addEventListener('message',(e)=>{
                         const data = JSON.parse(e.data);
+                        console.log("data recived:-",data)
                         handler(data)
                         
                     });
