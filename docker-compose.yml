@@ -1,5 +1,5 @@
 version: '3'
-
+                                                        
 services:
   redis:
     image: redis:latest
@@ -15,9 +15,9 @@ services:
       - "8000:8000"
   channels:
     build: ./backend
-    command: daphne -b 0.0.0.0 -p 8001 backend.backend.asgi:application
+    command: daphne -b 0.0.0.0 -p 8001 backend.asgi:application
     volumes:
-      - ./django_channels:/django_channels
+      - ./backend:/backend
     ports:
       - "8001:8001"
     links:
